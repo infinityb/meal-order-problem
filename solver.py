@@ -147,22 +147,37 @@ class TestExampleResult(unittest.TestCase):
             NUT_FREE: 0,
             FISH_FREE: 0,
         })
-        restaurants = [
-            Restaurant("RestA", 5, 40, {
-                VEGETARIAN: 4,
-                GLUTEN_FREE: 0,
-                NUT_FREE: 0,
-                FISH_FREE: 0
-            }),
-            Restaurant("RestB", 3, 100, {
-                VEGETARIAN: 20,
-                GLUTEN_FREE: 20,
-                NUT_FREE: 0,
-                FISH_FREE: 0
-            }),
-        ]
+        resta_a = Restaurant("RestA", 5, 40, {
+            VEGETARIAN: 4,
+            GLUTEN_FREE: 0,
+            NUT_FREE: 0,
+            FISH_FREE: 0
+        })
+        resta_b = Restaurant("RestB", 3, 100, {
+            VEGETARIAN: 20,
+            GLUTEN_FREE: 20,
+            NUT_FREE: 0,
+            FISH_FREE: 0
+        })
+        restaurants = [resta_a, resta_b]
         best_order = optimize_orders(required_meals, restaurants)
         self.assertEqual(best_order.quality_score, 230)
+
+        self.assertEqual(best_order.orders_by_restaurant[resta_a], {
+            TOTAL: 40,
+            VEGETARIAN: 4,
+            GLUTEN_FREE: 0,
+            NUT_FREE: 0,
+            FISH_FREE: 0
+        })
+        self.assertEqual(best_order.orders_by_restaurant[resta_b], {
+            TOTAL: 10,
+            VEGETARIAN: 1,
+            GLUTEN_FREE: 7,
+            NUT_FREE: 0,
+            FISH_FREE: 0
+        })
+
 
     def test_extra_restaurants(self):
         required_meals = (50, {
