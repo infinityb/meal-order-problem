@@ -16,111 +16,146 @@
 # Expected meal orders: Restaurant A (4 vegetarian + 36 others),
 # Restaurant B (1 vegetarian + 7 glutein free + 2 others)
 
+import sys
+from cStringIO import StringIO
 import math
 import unittest
+from collections import OrderedDict
 
+TOTAL = 'total'
 VEGETARIAN = 'vegetarian'
 GLUTEN_FREE = 'gluten-free'
 NUT_FREE = 'nut-free'
 FISH_FREE = 'fish-free'
 
 
+class NotSatisfiable(Exception):
+    def __init__(self, specialty_key):
+        super(NotSatisfiable, self).__init__(
+            "Ran out of restaurants for {!r}".format(specialty_key))
+        self.specialty_key = specialty_key
+
+
 class Restaurant(object):
-    def __init__(self, quality, total, specialty_max):
+    def __init__(self, name, quality, total, specialty_max):
+        self.name = name
         self.quality = quality
         self.total = total
         self.specialty_max = specialty_max
 
-
-def state_iterator(spec_max):
-    """ state_iterator(..., int) -> iter<?>
-
-    For a given restaurant, emits different combinations of specialty
-    orders.
-    """
-    state = {
-        VEGETARIAN: 0,
-        GLUTEN_FREE: 0,
-        NUT_FREE: 0,
-        FISH_FREE: 0,
-    }
-    key_order = [VEGETARIAN, GLUTEN_FREE, NUT_FREE, FISH_FREE]
-
-    # yield the initial state
-    yield state
-
-    is_finished = False
-    while not is_finished:
-        for (i, key) in enumerate(key_order):
-            if state[key] < spec_max[key]:
-                state[key] += 1
-                for key in key_order[:i]:
-                    state[key] = 0
-                yield state
-                break
-        else:
-            is_finished = True
+    def __repr__(self):
+        if __name__ == '__main__':
+            return "R({!r})".format(self.name)
+        return "Restaurant(name={!r}, quality={!r}, total={!r}, specialty_max={!r}" \
+            .format(self.name, self.quality, self.total, self.specialty_max)
 
 
 class OrderResult(object):
     def __init__(self, orders_by_restaurant):
         acc = 0
         for (restaurant, orders) in orders_by_restaurant.iteritems():
-            acc += sum(orders) * restaurants.quality
+            acc += orders[TOTAL] * restaurant.quality
         self.orders_by_restaurant = orders_by_restaurant
         self.quality_score = acc
 
+def format_order_result(order):
+    out = StringIO()
+    ordertype_order = [VEGETARIAN, GLUTEN_FREE, NUT_FREE, FISH_FREE]
+    for (resta, order) in order.orders_by_restaurant.iteritems():
+        out.write("Orders for {}\n".format(resta.name))
+        taken = 0
+        for key in ordertype_order:
+            taken += order[key]
+            out.write("{:<25} : {}\n".format(key, order[key]))
+        out.write("{:<25} : {}\n".format('other', order[TOTAL] - taken))
+        out.write("{:<25} : {}\n".format(TOTAL, order[TOTAL]))
+        out.write("\n\n")
+    return out.getvalue()
 
-def optimize_orders(order, restaurants):
-    """ optimize_orders(...) -> OrderResult
+
+def _iterate_specialties(specialties):
+    """ yields the each key a `value` number of times.
     """
-    # we sort the restaurants by quality, since greedily selecting high
-    # quality restaurants won't reduce the quality score.
-    restaurants = sorted(restaurants, key=lambda r: r.quality, reverse=True)
-    # We can also just fill the best restaurants first
+    for (key, count) in specialties.iteritems():
+        for _ in xrange(count):
+            yield key
 
-    return OrderResult({})
+
+def optimize_orders(order_pair, restaurants):
+    (order_count, req_specialty) = order_pair
+    # we sort the restaurants by quality to use a greedy algorithm, since
+    # greedily selecting high quality restaurants won't reduce the quality
+    # score.
+    restaurants = sorted(restaurants, key=lambda r: r.quality, reverse=True)
+
+    # greedily assign meals to best specialty slot available
+    specialty_open_slots = [
+        (resta, dict(resta.specialty_max))
+        for resta in restaurants]
+
+    orders = list()
+    for spec_order_key in _iterate_specialties(req_specialty):
+        for (resta, open_slots) in specialty_open_slots:
+            # search for a restaurant with this open slot.
+            if open_slots[spec_order_key] > 0:
+                open_slots[spec_order_key] -= 1
+                orders.append((resta, spec_order_key))
+                break
+        else:
+            raise NotSatisfiable(spec_order_key)
+
+    # at this point, all of our specialty orders have been assigned.
+    # We can now count the assignments and fill the non-specialties.
+    global_total_assigned = 0
+    assigned = OrderedDict()
+
+    initial_state = {
+        TOTAL: 0,
+        VEGETARIAN: 0,
+        GLUTEN_FREE: 0,
+        NUT_FREE: 0,
+        FISH_FREE: 0,
+    }
+
+    # import pdb; pdb.set_trace()
+
+    for (resta, spec) in orders:
+        if resta not in assigned:
+            assigned[resta] = dict(initial_state)
+        assigned[resta][TOTAL] += 1
+        assigned[resta][spec] += 1
+        global_total_assigned += 1
+
+    assignment_remainder = order_count - global_total_assigned
+    for resta in restaurants:
+        resta_slots_left = min(
+            assignment_remainder,
+            resta.total - assigned[resta][TOTAL])
+        assignment_remainder -= resta_slots_left
+        assigned[resta][TOTAL] += resta_slots_left
+
+    if assignment_remainder > 0:
+        raise NotSatisfiable
+
+    return OrderResult(assigned)
 
 
 class TestExampleResult(unittest.TestCase):
-    def test_state_iterator_uniqueness(self):
-        iterator = state_iterator({
-            VEGETARIAN: 2,
-            GLUTEN_FREE: 3,
-            NUT_FREE: 2,
-            FISH_FREE: 3,
-        })
-        seen = set()
-        for state in iterator:
-            as_tuple = (
-                state[VEGETARIAN],
-                state[GLUTEN_FREE],
-                state[NUT_FREE],
-                state[FISH_FREE])
-            self.assertFalse(as_tuple in seen)
-            seen.add(as_tuple)
-
-    def test_state_iterator_length(self):
-        length = (
-            math.factorial(2) * math.factorial(2) *
-            math.factorial(3) * math.factorial(3))
-        self.assertEqual(length, sum(1 for _ in state_iterator({
-            VEGETARIAN: 2,
-            GLUTEN_FREE: 3,
-            NUT_FREE: 2,
-            FISH_FREE: 3,
-        })))
-
     def test_example_result(self):
-        required_meals = (50, 5, 7, 0, 0)
+        required_meals = (50, {
+            VEGETARIAN: 5,
+            GLUTEN_FREE: 7,
+            NUT_FREE: 0,
+            FISH_FREE: 0,
+        })
         restaurants = [
-            Restaurant(5, 40, {
+            Restaurant("RestA", 5, 40, {
                 VEGETARIAN: 4,
                 GLUTEN_FREE: 0,
                 NUT_FREE: 0,
                 FISH_FREE: 0
             }),
-            Restaurant(3, 100, {
+            Restaurant("RestB", 3, 100, {
                 VEGETARIAN: 20,
                 GLUTEN_FREE: 20,
                 NUT_FREE: 0,
@@ -132,4 +167,35 @@ class TestExampleResult(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main()
+    if len(sys.argv) == 1 or sys.argv[1] != "--main":
+        unittest.main()
+
+    required_meals = (50, {
+        VEGETARIAN: 5,
+        GLUTEN_FREE: 7,
+        NUT_FREE: 0,
+        FISH_FREE: 0,
+    })
+    restaurants = [
+        Restaurant("Restaurant A", 5, 40, {
+            VEGETARIAN: 4,
+            GLUTEN_FREE: 0,
+            NUT_FREE: 0,
+            FISH_FREE: 0
+        }),
+        Restaurant("Restaurant B", 3, 100, {
+            VEGETARIAN: 20,
+            GLUTEN_FREE: 20,
+            NUT_FREE: 0,
+            FISH_FREE: 0
+        }),
+    ]
+
+    try:
+        best_order = optimize_orders(required_meals, restaurants)
+    except NotSatisfiable as e:
+        print("The orders could not be satisfied by the known restaurants")
+        print("")
+        print("{}".format(e))
+        sys.exit(1)
+    print(format_order_result(best_order))
