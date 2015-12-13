@@ -85,7 +85,8 @@ def optimize_orders(order_pair, restaurants):
     (order_count, req_specialty) = order_pair
     # we sort the restaurants by quality to use a greedy algorithm, since
     # greedily selecting high quality restaurants won't reduce the quality
-    # score.
+    # score (specialty meals are independent, i.e., there are no
+    # cross-specialty constraints.)
     restaurants = sorted(restaurants, key=lambda r: r.quality, reverse=True)
 
     # greedily assign meals to best specialty slot available
@@ -116,8 +117,6 @@ def optimize_orders(order_pair, restaurants):
         NUT_FREE: 0,
         FISH_FREE: 0,
     }
-
-    # import pdb; pdb.set_trace()
 
     for (resta, spec) in orders:
         if resta not in assigned:
@@ -167,9 +166,6 @@ class TestExampleResult(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 1 or sys.argv[1] != "--main":
-        unittest.main()
-
     required_meals = (50, {
         VEGETARIAN: 5,
         GLUTEN_FREE: 7,
