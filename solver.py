@@ -118,9 +118,9 @@ def optimize_orders(order_pair, restaurants):
         FISH_FREE: 0,
     }
 
+    for resta in restaurants:
+        assigned[resta] = dict(initial_state)
     for (resta, spec) in orders:
-        if resta not in assigned:
-            assigned[resta] = dict(initial_state)
         assigned[resta][TOTAL] += 1
         assigned[resta][spec] += 1
         global_total_assigned += 1
@@ -164,6 +164,35 @@ class TestExampleResult(unittest.TestCase):
         best_order = optimize_orders(required_meals, restaurants)
         self.assertEqual(best_order.quality_score, 230)
 
+    def test_extra_restaurants(self):
+        required_meals = (50, {
+            VEGETARIAN: 5,
+            GLUTEN_FREE: 7,
+            NUT_FREE: 0,
+            FISH_FREE: 0,
+        })
+        restaurants = [
+            Restaurant("RestA", 5, 40, {
+                VEGETARIAN: 4,
+                GLUTEN_FREE: 0,
+                NUT_FREE: 0,
+                FISH_FREE: 0
+            }),
+            Restaurant("RestB", 3, 100, {
+                VEGETARIAN: 20,
+                GLUTEN_FREE: 20,
+                NUT_FREE: 0,
+                FISH_FREE: 0
+            }),
+            Restaurant("RestC", 3, 100, {
+                VEGETARIAN: 20,
+                GLUTEN_FREE: 20,
+                NUT_FREE: 20,
+                FISH_FREE: 20
+            }),
+        ]
+        best_order = optimize_orders(required_meals, restaurants)
+        self.assertEqual(best_order.quality_score, 230)
 
 if __name__ == '__main__':
     required_meals = (50, {
